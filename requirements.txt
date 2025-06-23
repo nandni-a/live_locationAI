@@ -1,0 +1,9 @@
+torch==2.2.2+cpu
+torchvision==0.17.2+cpu
+gradio
+requests
+pillow
+clip-by-openai
+Flask==2.3.3
+gradio==4.30.0
+requests==2.31.0

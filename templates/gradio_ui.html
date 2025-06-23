@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Live Location & Routing</title>
+</head>
+<body>
+  <h2>Gradio + Google Street View</h2>
+
+  <div style="display: flex;">
+    <iframe id="gradio_iframe" src="http://localhost:7862/" width="55%" height="600px"></iframe>
+
+    <div id="street-view" style="width: 45%; height: 600px;"></div>
+  </div>
+
+  <script>
+    const lat = "{{ lat }}";
+    const lng = "{{ lng }}";
+
+    function initStreetView() {
+      const sv = new google.maps.StreetViewPanorama(
+        document.getElementById('street-view'),
+        {
+          position: { lat: parseFloat(lat), lng: parseFloat(lng) },
+          pov: { heading: 165, pitch: 0 },
+          zoom: 1
+        }
+      );
+    }
+  </script>
+  <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBOrTlQezmexIXDVpBpDRkghijcVlUKiUg&callback=initStreetView">
+  </script>
+</body>
+</html>

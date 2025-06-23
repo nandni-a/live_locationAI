@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Live Navigation App</title>
+  <style>
+    body { font-family: sans-serif; padding: 10px; }
+    #map, #pano {
+      height: 45vh;
+      width: 100%;
+      margin-bottom: 10px;
+      border-radius: 10px;
+    }
+    #infoBox { font-size: 16px; margin-bottom: 10px; }
+    button { padding: 10px 20px; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <h2>🌍 Live Navigation App</h2>
+  <div id="infoBox">Distance: -- | Duration: --</div>
+  <div id="map"></div>
+  <div id="pano">Loading street view...</div>
+  <button id="findNearbyBtn">🔍 Find Nearby (via Gradio)</button>
+
+  <script>
+    let map, panorama, currentLocation, directionsService, directionsRenderer, userMarker;
+    let destination = null;
+    let lastLocation = null;
+
+    const selectedLat = "{{ lat }}";
+    const selectedLng = "{{ lng }}";
+    const selectedName = "{{ name }}";
+
+    function initMap() {
+      navigator.geolocation.getCurrentPosition((position) => {
+        currentLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        lastLocation = { ...currentLocation };
+
+        map = new google.maps.Map(document.getElementById("map"), {
+          center: currentLocation,
+          zoom: 16
+        });
+
+        userMarker = new google.maps.Marker({
+          position: currentLocation,
+          map,
+          icon: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+          title: "You are here"
+        });
+
+        directionsService = new google.maps.DirectionsService();
+        directionsRenderer = new google.maps.DirectionsRenderer({ suppressMarkers: false });
+        directionsRenderer.setMap(map);
+
+        loadStreetView(currentLocation);
+
+        document.getElementById("findNearbyBtn").onclick = () => {
+          const url = `http://127.0.0.1:7860?lat=${currentLocation.lat}&lng=${currentLocation.lng}`;
+          window.open(url, "_blank");
+        };
+
+        if (selectedLat && selectedLng) {
+          destination = {
+            lat: parseFloat(selectedLat),
+            lng: parseFloat(selectedLng)
+          };
+          updateRoute();
+        }
+
+        navigator.geolocation.watchPosition((pos) => {
+          const newLocation = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
+          };
+          const moved = getDistance(lastLocation, newLocation);
+
+          if (moved >= 20) {
+            currentLocation = newLocation;
+            lastLocation = newLocation;
+            userMarker.setPosition(currentLocation);
+            map.panTo(currentLocation);
+            loadStreetView(currentLocation);
+            if (destination) updateRoute();
+          }
+        }, () => alert("Location tracking failed."));
+      }, () => alert("Geolocation denied."));
+    }
+
+    // ✅ Smart fallback to nearest street view
+    function loadStreetView(loc) {
+      const service = new google.maps.StreetViewService();
+      const radiusSteps = [50, 100, 250, 500, 1000];
+
+      function tryNext(index) {
+        if (index >= radiusSteps.length) {
+          document.getElementById("pano").innerHTML = "<b>📭 No Street View available within 1km.</b>";
+          return;
+        }
+
+        service.getPanorama({ location: loc, radius: radiusSteps[index] }, (data, status) => {
+          if (status === "OK") {
+            panorama = new google.maps.StreetViewPanorama(
+              document.getElementById("pano"), {
+                pano: data.location.pano,
+                pov: { heading: 165, pitch: 0 },
+                zoom: 1
+              }
+            );
+            map.setStreetView(panorama);
+          } else {
+            tryNext(index + 1);
+          }
+        });
+      }
+
+      tryNext(0);
+    }
+
+    function updateRoute() {
+      directionsRenderer.setDirections({ routes: [] });
+
+      directionsService.route({
+        origin: currentLocation,
+        destination: destination,
+        travelMode: "WALKING"
+      }, (response, status) => {
+        if (status === "OK") {
+          directionsRenderer.setDirections(response);
+          const leg = response.routes[0].legs[0];
+          document.getElementById("infoBox").innerText =
+            `Distance: ${leg.distance.text} | Duration: ${leg.duration.text}`;
+        } else {
+          alert("Route failed to load.");
+        }
+      });
+    }
+
+    function getDistance(p1, p2) {
+      const R = 6371e3;
+      const toRad = deg => deg * Math.PI / 180;
+      const dLat = toRad(p2.lat - p1.lat);
+      const dLng = toRad(p2.lng - p1.lng);
+      const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(toRad(p1.lat)) * Math.cos(toRad(p2.lat)) *
+                Math.sin(dLng / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+  </script>
+
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB4bn0LrJAoypY06cCmr8NIqAU-2FWCqv8&libraries=places&callback=initMap" async defer></script>
+</body>
+</html>
